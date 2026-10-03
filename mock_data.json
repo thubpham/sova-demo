@@ -1,0 +1,84 @@
+{
+  "customers": [
+    {
+      "customer_id": "KH-001",
+      "ten_cong_ty": "Công ty TNHH Thương mại Minh Phát",
+      "ma_so_thue": "0312345678",
+      "han_muc_cong_no_vnd": 3000000000,
+      "cong_no_hien_tai_vnd": 800000000,
+      "dieu_khoan_thanh_toan": "Công nợ 30 ngày",
+      "trang_thai": "hoat_dong"
+    },
+    {
+      "customer_id": "KH-002",
+      "ten_cong_ty": "Công ty Cổ phần Phân phối Đông Á",
+      "ma_so_thue": "0108765432",
+      "han_muc_cong_no_vnd": 1500000000,
+      "cong_no_hien_tai_vnd": 200000000,
+      "dieu_khoan_thanh_toan": "Công nợ 45 ngày",
+      "trang_thai": "hoat_dong"
+    },
+    {
+      "customer_id": "KH-003",
+      "ten_cong_ty": "Công ty TNHH Xây dựng Hòa Bình An",
+      "ma_so_thue": "0401122334",
+      "han_muc_cong_no_vnd": 500000000,
+      "cong_no_hien_tai_vnd": 480000000,
+      "dieu_khoan_thanh_toan": "Thanh toán trước 50%",
+      "trang_thai": "hoat_dong"
+    }
+  ],
+  "products": [
+    { "sku": "SP-123", "ten_san_pham": "Máy bơm ly tâm công nghiệp 3HP", "don_vi": "cái", "gia_ban_vnd": 3500000 },
+    { "sku": "SP-456", "ten_san_pham": "Van điện từ DN50", "don_vi": "cái", "gia_ban_vnd": 1500000 },
+    { "sku": "SP-789", "ten_san_pham": "Tủ điện điều khiển bơm 3 pha", "don_vi": "bộ", "gia_ban_vnd": 8200000 },
+    { "sku": "SP-101", "ten_san_pham": "Ống thép mạ kẽm DN50 (cây 6m)", "don_vi": "cây", "gia_ban_vnd": 420000 }
+  ],
+  "inventory": [
+    { "sku": "SP-123", "ton_kho": 200, "diem_dat_hang_lai": 150, "kho": "Kho Bình Dương" },
+    { "sku": "SP-456", "ton_kho": 50, "diem_dat_hang_lai": 60, "kho": "Kho Bình Dương" },
+    { "sku": "SP-789", "ton_kho": 12, "diem_dat_hang_lai": 5, "kho": "Kho Hà Nội" },
+    { "sku": "SP-101", "ton_kho": 2000, "diem_dat_hang_lai": 500, "kho": "Kho Bình Dương" }
+  ],
+  "vendors": [
+    {
+      "vendor_id": "NCC-001",
+      "ten_ncc": "Công ty TNHH Cơ điện Việt Tiến",
+      "ma_so_thue": "0301239876",
+      "co_hoa_don_gtgt": true,
+      "danh_gia_giao_hang": 4.6,
+      "dieu_khoan_cong_no": "Công nợ 30 ngày"
+    },
+    {
+      "vendor_id": "NCC-002",
+      "ten_ncc": "Cơ sở Thiết bị Phúc Long",
+      "ma_so_thue": "8012345670",
+      "co_hoa_don_gtgt": false,
+      "danh_gia_giao_hang": 3.9,
+      "dieu_khoan_cong_no": "Thanh toán ngay"
+    },
+    {
+      "vendor_id": "NCC-003",
+      "ten_ncc": "Công ty Cổ phần Thiết bị Công nghiệp Sài Gòn",
+      "ma_so_thue": "0315556677",
+      "co_hoa_don_gtgt": true,
+      "danh_gia_giao_hang": 4.2,
+      "dieu_khoan_cong_no": "Công nợ 15 ngày"
+    }
+  ],
+  "vendor_prices": [
+    { "vendor_id": "NCC-001", "sku": "SP-123", "gia_vnd": 2800000, "thoi_gian_giao_ngay": 7, "so_luong_toi_thieu": 50 },
+    { "vendor_id": "NCC-002", "sku": "SP-123", "gia_vnd": 2650000, "thoi_gian_giao_ngay": 5, "so_luong_toi_thieu": 20 },
+    { "vendor_id": "NCC-003", "sku": "SP-123", "gia_vnd": 3000000, "thoi_gian_giao_ngay": 3, "so_luong_toi_thieu": 100 },
+
+    { "vendor_id": "NCC-001", "sku": "SP-456", "gia_vnd": 1200000, "thoi_gian_giao_ngay": 8, "so_luong_toi_thieu": 10 },
+    { "vendor_id": "NCC-002", "sku": "SP-456", "gia_vnd": 1050000, "thoi_gian_giao_ngay": 4, "so_luong_toi_thieu": 10 },
+    { "vendor_id": "NCC-003", "sku": "SP-456", "gia_vnd": 1250000, "thoi_gian_giao_ngay": 4, "so_luong_toi_thieu": 20 },
+
+    { "vendor_id": "NCC-003", "sku": "SP-789", "gia_vnd": 6500000, "thoi_gian_giao_ngay": 10, "so_luong_toi_thieu": 2 },
+
+    { "vendor_id": "NCC-001", "sku": "SP-101", "gia_vnd": 350000, "thoi_gian_giao_ngay": 3, "so_luong_toi_thieu": 100 },
+    { "vendor_id": "NCC-002", "sku": "SP-101", "gia_vnd": 330000, "thoi_gian_giao_ngay": 2, "so_luong_toi_thieu": 200 }
+  ],
+  "purchase_orders": []
+}
