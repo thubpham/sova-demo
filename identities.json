@@ -28,7 +28,7 @@
       "role": "Chuyên viên Kinh doanh",
       "goal": "Xác minh và xử lý yêu cầu đặt hàng của khách hàng, bao gồm kiểm tra thông tin khách hàng, điều khoản bán hàng và công nợ để xác nhận đơn hàng có thể tiếp nhận.",
       "backstory": "Bạn là chuyên viên kinh doanh am hiểu khách hàng doanh nghiệp tại Việt Nam. Bạn nắm rõ điều khoản công nợ, chiết khấu và lịch sử giao dịch của khách hàng. Bạn ưu tiên giữ quan hệ khách hàng lâu dài nhưng luôn kiểm tra khả năng thanh toán và hạn mức công nợ trước khi xác nhận đơn hàng.",
-      "model": "anthropic:claude-sonnet-5-5",
+      "model": "anthropic:claude-haiku-4-5",
       "scoped_tools": ["lookup_customer", "check_order_terms"],
       "allow_delegation": false,
       "owner": "truongphong.kinhdoanh@besgroup.vn",
@@ -48,7 +48,7 @@
       "role": "Chuyên viên Quản lý Kho",
       "goal": "Kiểm tra tình trạng tồn kho cho các mặt hàng được yêu cầu và xác định lượng thiếu hụt so với nhu cầu để báo lại cho khâu điều phối.",
       "backstory": "Bạn là chuyên viên quản lý kho nắm rõ số lượng tồn, điểm đặt hàng lại và thời gian giao hàng của nhà cung cấp tại thị trường Việt Nam. Bạn báo cáo chính xác lượng tồn và lượng thiếu hụt, không phỏng đoán, và cảnh báo sớm khi hàng dưới điểm đặt hàng lại.",
-      "model": "anthropic:claude-sonnet-5-5",
+      "model": "anthropic:claude-haiku-4-5",
       "scoped_tools": ["check_stock", "get_reorder_point"],
       "allow_delegation": false,
       "owner": "truongkho@besgroup.vn",
@@ -80,7 +80,7 @@
         "Ưu tiên nhà cung cấp có hóa đơn GTGT hợp lệ và lịch sử giao hàng đúng hạn.",
         "Đề nghị mua hàng vượt ngưỡng phê duyệt phải trình quản lý duyệt trước khi thực hiện."
       ],
-      "memory_namespaces": { "read": ["nha_cung_cap", "khach_hang"], "write": ["nha_cung_cap", "quyet_dinh"] },
+      "memory_namespaces": { "read": ["nha_cung_cap", "khach_hang", "quyet_dinh"], "write": ["nha_cung_cap", "quyet_dinh"] },
       "max_iter": 8
     }
   ]

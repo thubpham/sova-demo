@@ -16,7 +16,7 @@ class StockCheck(TypedDict):
 class DraftPO(TypedDict):
     po_id: str; vendor_id: str; sku: str; so_luong: int
     don_gia_vnd: int; thanh_tien_vnd: int; thoi_gian_giao_ngay: int
-    can_phe_duyet: bool
+    can_phe_duyet: bool; ly_do: str
 
 class Approval(TypedDict):
     hanh_dong: str; nguoi_duyet: str; ghi_chu: str; thoi_diem: str

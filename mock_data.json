@@ -73,7 +73,7 @@
 
     { "vendor_id": "NCC-001", "sku": "SP-456", "gia_vnd": 1200000, "thoi_gian_giao_ngay": 8, "so_luong_toi_thieu": 10 },
     { "vendor_id": "NCC-002", "sku": "SP-456", "gia_vnd": 1050000, "thoi_gian_giao_ngay": 4, "so_luong_toi_thieu": 10 },
-    { "vendor_id": "NCC-003", "sku": "SP-456", "gia_vnd": 1250000, "thoi_gian_giao_ngay": 4, "so_luong_toi_thieu": 20 },
+    { "vendor_id": "NCC-003", "sku": "SP-456", "gia_vnd": 1150000, "thoi_gian_giao_ngay": 4, "so_luong_toi_thieu": 20 },
 
     { "vendor_id": "NCC-003", "sku": "SP-789", "gia_vnd": 6500000, "thoi_gian_giao_ngay": 10, "so_luong_toi_thieu": 2 },
 
