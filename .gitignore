@@ -16,3 +16,6 @@ SPEC.md
 # OS / editor
 .DS_Store
 .vscode/
+
+# LLM usage log
+llm_usage.jsonl

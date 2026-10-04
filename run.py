@@ -1,12 +1,16 @@
 import argparse
 import json
+import sqlite3
+from collections import Counter
 
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
 import erp
 import memory
-from graph import build_graph, thread_config
-from state import initial_state
+import usage
+from graph import Router, build_graph, thread_config
+from state import OrderRequest, initial_state
 
 DUE_DATE = "2026-10-20"
 
@@ -19,9 +23,16 @@ ORDERS = {
 }
 
 
-def request(name: str, order_id: str | None = None) -> dict:
+def request(name: str, order_id: str | None = None) -> OrderRequest:
     order = ORDERS[name]
-    return {**order, "order_id": order_id or order["order_id"], "due_date": DUE_DATE, "budget_vnd": None}
+    return OrderRequest(
+        order_id=order_id or order["order_id"],
+        customer_id=order["customer_id"],
+        sku=order["sku"],
+        quantity=order["quantity"],
+        due_date=DUE_DATE,
+        budget_vnd=None,
+    )
 
 
 def banner(title: str) -> None:
@@ -42,10 +53,11 @@ def reset() -> None:
         path.unlink()
     erp.build(reset=True)
     memory.seed(memory.get_store())
+    usage.clear()
     print("Đã đặt lại: erp.sqlite (từ mock_data.json), checkpoint và bộ nhớ (seed).")
 
 
-def start(app, req: dict) -> dict | None:
+def start(app, req: OrderRequest) -> dict | None:
     cfg = thread_config(req["order_id"])
     if app.get_state(cfg).values:
         print(f"Đơn {req['order_id']} đã có checkpoint. Dùng `run2` để tiếp tục hoặc `--reset` để làm lại.")
@@ -54,18 +66,19 @@ def start(app, req: dict) -> dict | None:
     out = app.invoke(initial_state(req), cfg)
     print("Audit:")
     show_audit(out["audit"])
+    print(usage.summary_line(usage.load(req["order_id"])))
     if out.get("__interrupt__"):
         show_json("Tạm dừng chờ duyệt (interrupt payload)", out["__interrupt__"][0].value)
-        print(f"Checkpoint đã lưu cho thread {cfg['configurable']['thread_id']}. Chạy `python run.py run2` để tiếp tục.")
+        print(f"Checkpoint đã lưu cho thread {cfg.get('configurable', {})['thread_id']}. Chạy `python run.py run2` để tiếp tục.")
     return out
 
 
-def run1(router: str) -> None:
+def run1(router: Router) -> None:
     banner(f"RUN 1: đặt đơn chính, dừng ở bước phê duyệt (router={router})")
     start(build_graph(router), request("run1"))
 
 
-def run2(router: str, decision: str, approver: str, note: str) -> None:
+def run2(router: Router, decision: str, approver: str, note: str) -> None:
     banner(f"RUN 2: tiếp tục cùng thread sau khi khởi động lại (router={router})")
     app = build_graph(router)
     cfg = thread_config(ORDERS["run1"]["order_id"])
@@ -86,7 +99,7 @@ def run2(router: str, decision: str, approver: str, note: str) -> None:
     show_json(f"Bộ nhớ quyet_dinh/{ORDERS['run1']['order_id']}", memory.read(store, "procurement_agent", "quyet_dinh", ORDERS["run1"]["order_id"]))
 
 
-def run3(router: str) -> None:
+def run3(router: Router) -> None:
     banner(f"RUN 3: đơn mới, cùng khách hàng, SKU khác; thu mua nhớ lại run 1 (router={router})")
     store = memory.get_store()
     recalled = {k: v for k, v in memory.read(store, "procurement_agent", "quyet_dinh").items() if v["customer_id"] == ORDERS["run3"]["customer_id"]}
@@ -94,7 +107,7 @@ def run3(router: str) -> None:
     start(build_graph(router), request("run3"))
 
 
-def extra(name: str, title: str, router: str) -> None:
+def extra(name: str, title: str, router: Router) -> None:
     banner(f"{title} (router={router})")
     start(build_graph(router), request(name))
 
@@ -118,7 +131,49 @@ def compare() -> None:
     print("Kết quả:", "khớp" if paths["fixed"] == paths["llm"] else "khác nhau")
 
 
-def run_all(router: str, decision: str, approver: str, note: str) -> None:
+def thread_status(snapshot) -> str:
+    if any(w[1] == "__interrupt__" for w in snapshot.pending_writes or []):
+        return "đang chờ duyệt"
+    audit = snapshot.checkpoint["channel_values"].get("audit", [])
+    return "hoàn tất" if audit and audit[-1]["node"] == "finalize" else "đang dở"
+
+
+def inspect_db(order_id: str | None) -> None:
+    if not memory.DB_PATH.exists():
+        print(f"Chưa có {memory.DB_PATH.name}. Chạy một lệnh (vd. `run1`) trước.")
+        return
+    banner(f"BỘ NHỚ DÀI HẠN: {memory.DB_PATH.name} → bảng `store` (namespace / key → JSON)")
+    store = memory.get_store()
+    for namespace in memory.SCHEMAS:
+        for item in store.search((namespace,), limit=1000):
+            print(f"  {namespace} / {item.key}: {json.dumps(item.value, ensure_ascii=False)}")
+
+    banner(f"CHECKPOINT: {memory.DB_PATH.name} → bảng `checkpoints` (một ảnh chụp state sau mỗi bước)")
+    saver = SqliteSaver(sqlite3.connect(memory.DB_PATH, check_same_thread=False))
+    counts, latest = Counter(), {}
+    for snapshot in saver.list(None):
+        if snapshot.config.get("configurable", {}).get("checkpoint_ns"):
+            continue
+        thread_id = snapshot.config.get("configurable", {})["thread_id"]
+        counts[thread_id] += 1
+        latest.setdefault(thread_id, snapshot)
+    if not latest:
+        print("  (chưa có đơn nào)")
+    for thread_id, snapshot in latest.items():
+        print(f"  {thread_id}: {counts[thread_id]} ảnh chụp, {thread_status(snapshot)}")
+
+    if order_id:
+        thread_id = thread_config(order_id).get("configurable", {})["thread_id"]
+        if thread_id not in latest:
+            print(f"\nKhông tìm thấy {thread_id}.")
+            return
+        values = dict(latest[thread_id].checkpoint["channel_values"])
+        values["messages"] = [m.content for m in values.get("messages", [])]
+        banner(f"STATE MỚI NHẤT CỦA {thread_id}")
+        print(json.dumps(values, ensure_ascii=False, indent=2, default=str))
+
+
+def run_all(router: Router, decision: str, approver: str, note: str) -> None:
     reset()
     run1(router)
     run2(router, decision, approver, note)
@@ -128,12 +183,13 @@ def run_all(router: str, decision: str, approver: str, note: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Sova agent demo")
-    parser.add_argument("command", choices=["run1", "run2", "run3", "reject", "instock", "compare", "all", "reset"])
+    parser.add_argument("command", choices=["run1", "run2", "run3", "reject", "instock", "compare", "all", "reset", "inspect", "usage"])
     parser.add_argument("--router", choices=["fixed", "llm"], default="fixed")
     parser.add_argument("--reset", action="store_true", help="đặt lại ERP, checkpoint và bộ nhớ trước khi chạy")
     parser.add_argument("--decision", choices=["approve", "reject"], default="approve")
     parser.add_argument("--approver", default="truongphong.thumua@besgroup.vn")
     parser.add_argument("--note", default="Đồng ý theo đề xuất của bộ phận thu mua")
+    parser.add_argument("--order", help="lọc theo mã đơn hàng (dùng với inspect, usage)")
     args = parser.parse_args()
 
     if args.reset or args.command == "reset":
@@ -152,6 +208,11 @@ def main() -> None:
         compare()
     elif args.command == "all":
         run_all(args.router, args.decision, args.approver, args.note)
+    elif args.command == "inspect":
+        inspect_db(args.order)
+    elif args.command == "usage":
+        banner("LƯỢT GỌI LLM" + (f" CỦA ĐƠN {args.order}" if args.order else ""))
+        usage.report(args.order)
 
 
 if __name__ == "__main__":

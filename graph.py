@@ -9,6 +9,7 @@ from langchain.agents import create_agent
 from langchain.agents.structured_output import ProviderStrategy
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.store.base import BaseStore
@@ -18,6 +19,7 @@ import erp
 import memory
 from state import Approval, DraftPO, PurchaseState, SalesCheck, StockCheck
 from tools import TOOLS, set_po_status
+from usage import UsageTracker
 
 load_dotenv(memory.ROOT / ".env")
 
@@ -149,10 +151,15 @@ class PurchaseWorkflow:
         self.router = router
         ids = ["sales_agent", "inventory_agent", "procurement_agent"] + (["orchestrator"] if router == "llm" else [])
         self.agents = {i: build_agent(identities()[i]) for i in ids}
+        self.tracker = UsageTracker()
 
-    def run_agent(self, agent_id: str, content: str) -> dict:
-        limit = 2 * identities()[agent_id]["max_iter"] + 1
-        result = self.agents[agent_id].invoke({"messages": [HumanMessage(content)]}, {"recursion_limit": limit})
+    def run_agent(self, agent_id: str, content: str, state: PurchaseState) -> dict:
+        config: RunnableConfig = {
+            "recursion_limit": 2 * identities()[agent_id]["max_iter"] + 1,
+            "callbacks": [self.tracker],
+            "metadata": {"agent": agent_id, "order_id": state["request"]["order_id"]},
+        }
+        result = self.agents[agent_id].invoke({"messages": [HumanMessage(content)]}, config)
         return result["structured_response"]
 
     def orchestrator(self, state: PurchaseState, *, store: BaseStore) -> dict:
@@ -168,7 +175,7 @@ class PurchaseWorkflow:
                 "Mỗi bước chỉ chạy một lần. Trả về route và lý do ngắn gọn."
             )
             content = task_message("orchestrator", store, state, task, ("sales_check", "stock_check", "draft_po", "approvals"))
-            decision = self.run_agent("orchestrator", content)
+            decision = self.run_agent("orchestrator", content, state)
             route, reason, entries = decision["route"], decision["ly_do"], []
             error = route_error(state, route)
             if error:
@@ -180,7 +187,7 @@ class PurchaseWorkflow:
     def sales(self, state: PurchaseState, *, store: BaseStore) -> dict:
         r = state["request"]
         task = f"Kiểm tra khách hàng {r['customer_id']} và điều khoản công nợ cho đơn {r['quantity']} {r['sku']}."
-        result = self.run_agent("sales_agent", task_message("sales_agent", store, state, task))
+        result = self.run_agent("sales_agent", task_message("sales_agent", store, state, task), state)
         return {
             "sales_check": result,
             "messages": [AIMessage(to_json(result), name="sales_agent")],
@@ -190,7 +197,7 @@ class PurchaseWorkflow:
     def inventory(self, state: PurchaseState, *, store: BaseStore) -> dict:
         r = state["request"]
         task = f"Kiểm tra tồn kho và điểm đặt hàng lại của {r['sku']}; tính lượng thiếu hụt so với nhu cầu {r['quantity']}."
-        result = self.run_agent("inventory_agent", task_message("inventory_agent", store, state, task, ("sales_check",)))
+        result = self.run_agent("inventory_agent", task_message("inventory_agent", store, state, task, ("sales_check",)), state)
         row = erp.query("SELECT ton_kho, diem_dat_hang_lai FROM inventory WHERE sku = ?", (r["sku"],))[0]
         actual = StockCheck(ton_kho=row["ton_kho"], thieu_hut=max(0, r["quantity"] - row["ton_kho"]), diem_dat_hang_lai=row["diem_dat_hang_lai"])
         entries = []
@@ -209,7 +216,7 @@ class PurchaseWorkflow:
             "nếu chúng ảnh hưởng đến lựa chọn, trích dẫn mã đơn hàng liên quan. "
             "Trả về po_id, vendor_id và lý do chọn."
         )
-        result = self.run_agent("procurement_agent", task_message("procurement_agent", store, state, task, ("sales_check", "stock_check")))
+        result = self.run_agent("procurement_agent", task_message("procurement_agent", store, state, task, ("sales_check", "stock_check")), state)
         rows = erp.query("SELECT * FROM purchase_orders WHERE po_id = ?", (result["po_id"],))
         if not rows:
             raise RuntimeError(f"Agent trả về đơn mua hàng không tồn tại: {result['po_id']}")
@@ -327,5 +334,5 @@ def build_graph(router: Router = "fixed"):
     return PurchaseWorkflow(router).build()
 
 
-def thread_config(order_id: str) -> dict:
+def thread_config(order_id: str) -> RunnableConfig:
     return {"configurable": {"thread_id": f"don-hang:{order_id}"}, "recursion_limit": 60}
