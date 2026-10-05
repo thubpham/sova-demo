@@ -57,8 +57,8 @@ def reset() -> None:
     print("Đã đặt lại: erp.sqlite (từ mock_data.json), checkpoint và bộ nhớ (seed).")
 
 
-def start(app, req: OrderRequest) -> dict | None:
-    cfg = thread_config(req["order_id"])
+def start(router: Router, req: OrderRequest) -> dict | None:
+    app, cfg = build_graph(router), thread_config(req["order_id"], router)
     if app.get_state(cfg).values:
         print(f"Đơn {req['order_id']} đã có checkpoint. Dùng `run2` để tiếp tục hoặc `--reset` để làm lại.")
         return None
@@ -75,13 +75,13 @@ def start(app, req: OrderRequest) -> dict | None:
 
 def run1(router: Router) -> None:
     banner(f"RUN 1: đặt đơn chính, dừng ở bước phê duyệt (router={router})")
-    start(build_graph(router), request("run1"))
+    start(router, request("run1"))
 
 
 def run2(router: Router, decision: str, approver: str, note: str) -> None:
     banner(f"RUN 2: tiếp tục cùng thread sau khi khởi động lại (router={router})")
     app = build_graph(router)
-    cfg = thread_config(ORDERS["run1"]["order_id"])
+    cfg = thread_config(ORDERS["run1"]["order_id"], router)
     snapshot = app.get_state(cfg)
     if not snapshot.next:
         print("Không có đơn nào đang chờ duyệt. Chạy `run1` trước.")
@@ -104,12 +104,12 @@ def run3(router: Router) -> None:
     store = memory.get_store()
     recalled = {k: v for k, v in memory.read(store, "procurement_agent", "quyet_dinh").items() if v["customer_id"] == ORDERS["run3"]["customer_id"]}
     show_json("Quyết định trước đây của khách hàng này trong bộ nhớ", recalled or "(chưa có, hãy chạy run1 + run2 trước)")
-    start(build_graph(router), request("run3"))
+    start(router, request("run3"))
 
 
 def extra(name: str, title: str, router: Router) -> None:
     banner(f"{title} (router={router})")
-    start(build_graph(router), request(name))
+    start(router, request(name))
 
 
 def route_path(audit: list[dict]) -> list[str]:
@@ -122,7 +122,7 @@ def compare() -> None:
     for router in ("fixed", "llm"):
         req = request("compare", f"{ORDERS['compare']['order_id']}-{router}")
         print(f"\n--- router={router}")
-        out = start(build_graph(router), req)
+        out = start(router, req)
         if out is None:
             return
         paths[router] = route_path(out["audit"])
@@ -134,8 +134,14 @@ def compare() -> None:
 def thread_status(snapshot) -> str:
     if any(w[1] == "__interrupt__" for w in snapshot.pending_writes or []):
         return "đang chờ duyệt"
-    audit = snapshot.checkpoint["channel_values"].get("audit", [])
-    return "hoàn tất" if audit and audit[-1]["node"] == "finalize" else "đang dở"
+    values = snapshot.checkpoint["channel_values"]
+    audit = values.get("audit", [])
+    if not audit or audit[-1]["node"] != "finalize":
+        return "đang dở"
+    sales, approvals = values.get("sales_check"), values.get("approvals", [])
+    if (sales and not sales["hop_le"]) or (approvals and approvals[-1]["hanh_dong"] == "reject"):
+        return "từ chối"
+    return "hoàn tất"
 
 
 def inspect_db(order_id: str | None) -> None:

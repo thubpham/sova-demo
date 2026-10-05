@@ -52,7 +52,7 @@ class UsageTracker(BaseCallbackHandler):
 
     def on_llm_end(self, response, *, run_id, parent_run_id=None, tags=None, **kwargs):
         start, meta = self.started.pop(run_id, (time.perf_counter(), {}))
-        message = response.generations[0][0].message
+        message = getattr(response.generations[0][0], "message", None)
         usage = getattr(message, "usage_metadata", None) or {}
         model = (getattr(message, "response_metadata", None) or {}).get("model_name", "?")
         agent = meta.get("agent", "?")
@@ -116,6 +116,16 @@ def totals(records: list[dict]) -> dict:
         "latency": sum(r["latency_s"] for r in records),
         "cost": sum(known) if len(known) == len(records) else None,
     }
+
+
+def grouped(records: list[dict]) -> dict[str, list[dict]]:
+    result = {}
+    for key in ("agent", "order_id", "model"):
+        groups = defaultdict(list)
+        for r in records:
+            groups[r[key]].append(r)
+        result[key] = [{"name": name, **totals(rows)} for name, rows in groups.items()]
+    return result
 
 
 def summary_line(records: list[dict]) -> str:

@@ -108,17 +108,19 @@ def task_message(agent_id: str, store: BaseStore, state: PurchaseState, task: st
     return "\n\n".join(parts)
 
 
-def fixed_route(state: PurchaseState) -> str:
+def fixed_route(state: PurchaseState) -> tuple[str, str]:
     sales, stock = state["sales_check"], state["stock_check"]
     if sales is None:
-        return "sales"
+        return "sales", "Chưa kiểm tra công nợ"
     if not sales["hop_le"]:
-        return "finalize"
+        return "finalize", "Công nợ không hợp lệ, bỏ qua tồn kho và thu mua"
     if stock is None:
-        return "inventory"
+        return "inventory", "Công nợ hợp lệ, chưa kiểm tra tồn kho"
     if stock["thieu_hut"] > 0 and state["draft_po"] is None:
-        return "procurement"
-    return "finalize"
+        return "procurement", "Có thiếu hụt và chưa có đơn mua"
+    if state["draft_po"] is None:
+        return "finalize", "Đủ hàng, không cần thu mua"
+    return "finalize", "Đơn mua đã được quyết định"
 
 
 def route_error(state: PurchaseState, route: str) -> str | None:
@@ -167,7 +169,7 @@ class PurchaseWorkflow:
         if sum(e["node"] == "orchestrator" for e in state["audit"]) >= cap:
             return {"route": END, "audit": [log("orchestrator", f"Dừng: đạt giới hạn {cap} bước điều phối")]}
         if self.router == "fixed":
-            route, reason, entries = fixed_route(state), "quy tắc cố định", []
+            (route, reason), entries = fixed_route(state), []
         else:
             task = (
                 "Chọn bước tiếp theo: sales (kiểm tra khách hàng và công nợ), inventory (kiểm tra tồn kho), "
@@ -180,7 +182,8 @@ class PurchaseWorkflow:
             error = route_error(state, route)
             if error:
                 entries.append(log("orchestrator", f"Từ chối tuyến {route}: {error}"))
-                route, reason = fixed_route(state), "dự phòng theo quy tắc cố định"
+                route, rule = fixed_route(state)
+                reason = f"dự phòng theo quy tắc cố định: {rule}"
         entries.append(log("orchestrator", f"→ {route} ({self.router}): {reason}"))
         return {"route": route, "audit": entries}
 
@@ -334,5 +337,8 @@ def build_graph(router: Router = "fixed"):
     return PurchaseWorkflow(router).build()
 
 
-def thread_config(order_id: str) -> RunnableConfig:
-    return {"configurable": {"thread_id": f"don-hang:{order_id}"}, "recursion_limit": 60}
+def thread_config(order_id: str, router: Router | None = None) -> RunnableConfig:
+    config: RunnableConfig = {"configurable": {"thread_id": f"don-hang:{order_id}"}, "recursion_limit": 60}
+    if router:
+        config["metadata"] = {"router": router}
+    return config

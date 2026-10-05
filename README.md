@@ -28,8 +28,21 @@ uv pip install -r requirements.txt              # or: pip install -r requirement
 cp .env.example .env                            # then paste your API key into .env
 ```
 
-Try it. Run these as three separate commands, so step 2 really starts from a
-closed program:
+**Option A: in the browser.** Start the server, then open
+<http://localhost:8765>:
+
+```bash
+python -m uvicorn api:app --port 8765
+```
+
+Pick an order and a router, press **Chạy đơn** (run order), and watch each step
+appear. Big orders stop at an approval card where you approve or reject. Other
+tabs compare the two routers, show what's saved, list every AI call with its
+cost, and show the agents' setup. **Đặt lại demo** (reset) starts over. The API
+behind the page is listed at <http://localhost:8765/docs>.
+
+**Option B: in the terminal.** Run these as three separate commands, so step 2
+really starts from a closed program:
 
 ```bash
 python run.py run1 --reset    # start fresh, place an order → it pauses for approval
@@ -203,6 +216,8 @@ Two simple rules keep these apart:
 | `tools.py` | The six tools agents can call (all read or write business data) |
 | `graph.py` | The workflow: agents, routing, approval step, final step |
 | `run.py` | The demo commands |
+| `api.py` | The web server: the browser page talks to the agents through it |
+| `ui/` | The browser page (`index.html`, `app.js`); `ui/design/` holds the original design |
 
 ### How data moves
 
